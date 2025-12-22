@@ -1,0 +1,25 @@
+[project]
+name = "transcriber"
+version = "0.1.0"
+description = "Local audio transcription using OpenAI Whisper - 100% private"
+readme = "README.md"
+authors = [
+    { name = "Tomasz Trębski", email = "ttrebski@trek10.com" }
+]
+requires-python = ">=3.9,<3.13"
+dependencies = [
+    "faster-whisper>=1.0.0",
+    "click>=8.0.0",
+    "rich>=13.0.0",
+    "pathlib",
+    "boto3>=1.26.0",
+    "ffmpeg-python>=0.2.0"
+]
+
+[project.scripts]
+transcriber = "transcriber:main"
+aws-transcribe = "aws_transcribe:main"
+
+[build-system]
+requires = ["uv_build>=0.9.10,<0.10.0"]
+build-backend = "uv_build"
