@@ -17,6 +17,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 
 console = Console()
 
+
 def extract_audio(video_file: Path, audio_name: str) -> Path:
     """Extract audio from MP4 video using ffmpeg"""
     audio_file = video_file.parent / audio_name
@@ -25,15 +26,14 @@ def extract_audio(video_file: Path, audio_name: str) -> Path:
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
         TimeElapsedColumn(),
-        console=console
+        console=console,
     ) as progress:
         task = progress.add_task("Extracting audio from video...", total=None)
 
         try:
             (
-                ffmpeg
-                .input(str(video_file))
-                .output(str(audio_file), acodec='mp3', ab='192k', vn=None)
+                ffmpeg.input(str(video_file))
+                .output(str(audio_file), acodec="mp3", ab="192k", vn=None)
                 .overwrite_output()
                 .run(quiet=True)
             )
@@ -43,11 +43,14 @@ def extract_audio(video_file: Path, audio_name: str) -> Path:
             console.print(f"\n❌ [bold red]FFmpeg error:[/bold red] {str(e)}")
             raise click.Abort() from e
 
-def transcribe_audio(audio_file: Path, bucket: str, job_name: str, max_speakers: int, region: str) -> Path:
+
+def transcribe_audio(
+    audio_file: Path, bucket: str, job_name: str, max_speakers: int, region: str
+) -> Path:
     """Upload audio to S3, transcribe with AWS Transcribe, download result"""
     # Initialize AWS clients
-    s3_client = boto3.client('s3', region_name=region)
-    transcribe_client = boto3.client('transcribe', region_name=region)
+    s3_client = boto3.client("s3", region_name=region)
+    transcribe_client = boto3.client("transcribe", region_name=region)
 
     # S3 paths
     s3_key = f"audio/{job_name}/{audio_file.name}"
@@ -61,7 +64,7 @@ def transcribe_audio(audio_file: Path, bucket: str, job_name: str, max_speakers:
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
             TimeElapsedColumn(),
-            console=console
+            console=console,
         ) as progress:
             task = progress.add_task("Uploading to S3...", total=None)
             s3_client.upload_file(str(audio_file), bucket, s3_key)
@@ -70,39 +73,44 @@ def transcribe_audio(audio_file: Path, bucket: str, job_name: str, max_speakers:
         # Start transcription job
         console.print("\n🚀 Starting transcription job...")
         job_config = {
-            'TranscriptionJobName': job_name,
-            'LanguageCode': 'en-US',
-            'Media': {'MediaFileUri': s3_uri},
-            'Settings': {
-                'ShowSpeakerLabels': True,
-                'MaxSpeakerLabels': max_speakers
-            },
-            'OutputBucketName': bucket,
-            'OutputKey': output_key
+            "TranscriptionJobName": job_name,
+            "LanguageCode": "en-US",
+            "Media": {"MediaFileUri": s3_uri},
+            "Settings": {"ShowSpeakerLabels": True, "MaxSpeakerLabels": max_speakers},
+            "OutputBucketName": bucket,
+            "OutputKey": output_key,
         }
 
         response = transcribe_client.start_transcription_job(**job_config)
-        console.print(f"✅ Job started: {response['TranscriptionJob']['TranscriptionJobStatus']}")
+        console.print(
+            f"✅ Job started: {response['TranscriptionJob']['TranscriptionJobStatus']}"
+        )
 
         # Wait for completion
         with Progress(
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
             TimeElapsedColumn(),
-            console=console
+            console=console,
         ) as progress:
             task = progress.add_task("Waiting for transcription...", total=None)
 
             while True:
-                job_status = transcribe_client.get_transcription_job(TranscriptionJobName=job_name)
-                status = job_status['TranscriptionJob']['TranscriptionJobStatus']
+                job_status = transcribe_client.get_transcription_job(
+                    TranscriptionJobName=job_name
+                )
+                status = job_status["TranscriptionJob"]["TranscriptionJobStatus"]
 
-                if status == 'COMPLETED':
+                if status == "COMPLETED":
                     progress.update(task, description="✅ Transcription complete")
                     break
-                elif status == 'FAILED':
-                    failure_reason = job_status['TranscriptionJob'].get('FailureReason', 'Unknown error')
-                    console.print(f"\n❌ [bold red]Job failed:[/bold red] {failure_reason}")
+                elif status == "FAILED":
+                    failure_reason = job_status["TranscriptionJob"].get(
+                        "FailureReason", "Unknown error"
+                    )
+                    console.print(
+                        f"\n❌ [bold red]Job failed:[/bold red] {failure_reason}"
+                    )
                     raise click.Abort()
                 else:
                     progress.update(task, description=f"Processing... ({status})")
@@ -113,7 +121,7 @@ def transcribe_audio(audio_file: Path, bucket: str, job_name: str, max_speakers:
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
             TimeElapsedColumn(),
-            console=console
+            console=console,
         ) as progress:
             task = progress.add_task("Downloading transcript...", total=None)
             s3_client.download_file(bucket, output_key, str(output_file))
@@ -130,21 +138,22 @@ def transcribe_audio(audio_file: Path, bucket: str, job_name: str, max_speakers:
         console.print(f"\n❌ [bold red]Error:[/bold red] {str(e)}")
         raise click.Abort() from e
 
+
 def convert_to_markdown(transcript_data: dict, output_file: Path) -> Path:
     """Convert AWS Transcribe JSON to readable markdown format"""
     markdown_file = output_file.parent / "transcript.md"
 
     # Get transcript items with speaker labels
-    items = transcript_data['results']['items']
-    speaker_labels = transcript_data['results'].get('speaker_labels', {})
-    segments = speaker_labels.get('segments', [])
+    items = transcript_data["results"]["items"]
+    speaker_labels = transcript_data["results"].get("speaker_labels", {})
+    segments = speaker_labels.get("segments", [])
 
     # Create speaker timeline
     speaker_timeline = {}
     for segment in segments:
-        start_time = float(segment['start_time'])
-        end_time = float(segment['end_time'])
-        speaker = segment['speaker_label']
+        start_time = float(segment["start_time"])
+        end_time = float(segment["end_time"])
+        speaker = segment["speaker_label"]
         speaker_timeline[(start_time, end_time)] = speaker
 
     # Build markdown content
@@ -155,10 +164,10 @@ def convert_to_markdown(transcript_data: dict, output_file: Path) -> Path:
     current_end = None
 
     for item in items:
-        if item['type'] == 'pronunciation':
-            item_start = float(item['start_time'])
-            item_end = float(item['end_time'])
-            word = item['alternatives'][0]['content']
+        if item["type"] == "pronunciation":
+            item_start = float(item["start_time"])
+            item_end = float(item["end_time"])
+            word = item["alternatives"][0]["content"]
 
             # Find speaker for this timestamp
             item_speaker = None
@@ -171,7 +180,7 @@ def convert_to_markdown(transcript_data: dict, output_file: Path) -> Path:
             if item_speaker != current_speaker:
                 # Write previous speaker's text
                 if current_speaker and current_text:
-                    text = ' '.join(current_text)
+                    text = " ".join(current_text)
                     start_min = int(current_start // 60)
                     start_sec = int(current_start % 60)
                     end_min = int(current_end // 60)
@@ -190,13 +199,13 @@ def convert_to_markdown(transcript_data: dict, output_file: Path) -> Path:
                 current_text.append(word)
                 current_end = item_end
 
-        elif item['type'] == 'punctuation':
+        elif item["type"] == "punctuation":
             if current_text:
-                current_text[-1] += item['alternatives'][0]['content']
+                current_text[-1] += item["alternatives"][0]["content"]
 
     # Write final speaker's text
     if current_speaker and current_text:
-        text = ' '.join(current_text)
+        text = " ".join(current_text)
         start_min = int(current_start // 60)
         start_sec = int(current_start % 60)
         end_min = int(current_end // 60)
@@ -206,22 +215,49 @@ def convert_to_markdown(transcript_data: dict, output_file: Path) -> Path:
         )
 
     # Write markdown file
-    with open(markdown_file, 'w', encoding='utf-8') as f:
+    with open(markdown_file, "w", encoding="utf-8") as f:
         f.write("# Meeting Transcript\n\n")
         f.write("\n\n".join(markdown_lines))
 
     return markdown_file
 
+
 @click.command()
-@click.argument('video_file', type=click.Path(exists=True, path_type=Path))
-@click.option('--bucket', '-b', required=True, help='S3 bucket name')
-@click.option('--job-name', '-j', help='Transcription job name (auto-generated if not provided)')
-@click.option('--max-speakers', '-s', default=10, help='Maximum number of speakers to identify')
-@click.option('--region', '-r', default='us-east-1', help='AWS region')
-@click.option('--audio-name', '-a', default='audio.mp3', help='Audio filename (default: meeting_audio.mp3)')
-@click.option('--cleanup-audio/--keep-audio', default=True, help='Remove audio file after transcription (default: keep)')
-@click.option('--cleanup-json/--keep-json', default=True, help='Remove JSON file after creating markdown (default: keep)')
-def main(video_file, bucket, job_name, max_speakers, region, audio_name, cleanup_audio, cleanup_json):
+@click.argument("video_file", type=click.Path(exists=True, path_type=Path))
+@click.option("--bucket", "-b", required=True, help="S3 bucket name")
+@click.option(
+    "--job-name", "-j", help="Transcription job name (auto-generated if not provided)"
+)
+@click.option(
+    "--max-speakers", "-s", default=10, help="Maximum number of speakers to identify"
+)
+@click.option("--region", "-r", default="us-east-1", help="AWS region")
+@click.option(
+    "--audio-name",
+    "-a",
+    default="audio.mp3",
+    help="Audio filename (default: meeting_audio.mp3)",
+)
+@click.option(
+    "--cleanup-audio/--keep-audio",
+    default=True,
+    help="Remove audio file after transcription (default: keep)",
+)
+@click.option(
+    "--cleanup-json/--keep-json",
+    default=True,
+    help="Remove JSON file after creating markdown (default: keep)",
+)
+def main(
+    video_file,
+    bucket,
+    job_name,
+    max_speakers,
+    region,
+    audio_name,
+    cleanup_audio,
+    cleanup_json,
+):
     """
     🎯 AWS Transcribe Job Manager
 
@@ -231,11 +267,13 @@ def main(video_file, bucket, job_name, max_speakers, region, audio_name, cleanup
     Example: python aws_transcribe.py meeting.mp4
     """
 
-    console.print(Panel.fit(
-        "[bold blue]🎯 AWS Transcribe Job Manager[/bold blue]\n"
-        "[green]🔊 Speaker identification enabled[/green]",
-        border_style="blue"
-    ))
+    console.print(
+        Panel.fit(
+            "[bold blue]🎯 AWS Transcribe Job Manager[/bold blue]\n"
+            "[green]🔊 Speaker identification enabled[/green]",
+            border_style="blue",
+        )
+    )
 
     # Generate job name if not provided
     if not job_name:
@@ -256,7 +294,9 @@ def main(video_file, bucket, job_name, max_speakers, region, audio_name, cleanup
         console.print(f"🎵 Audio extracted: [bold]{audio_file.name}[/bold]")
 
         # Transcribe audio
-        output_file = transcribe_audio(audio_file, bucket, job_name, max_speakers, region)
+        output_file = transcribe_audio(
+            audio_file, bucket, job_name, max_speakers, region
+        )
 
         # Load and process results
         with open(output_file) as f:
@@ -266,21 +306,30 @@ def main(video_file, bucket, job_name, max_speakers, region, audio_name, cleanup
         console.print("\n📝 Converting to markdown format...")
         markdown_file = convert_to_markdown(transcript_data, output_file)
 
-        transcript_text = transcript_data['results']['transcripts'][0]['transcript']
-        speaker_labels = transcript_data['results'].get('speaker_labels', {})
-        speakers_count = len({segment.get('speaker_label', '') for segment in speaker_labels.get('segments', [])})
+        transcript_text = transcript_data["results"]["transcripts"][0]["transcript"]
+        speaker_labels = transcript_data["results"].get("speaker_labels", {})
+        speakers_count = len(
+            {
+                segment.get("speaker_label", "")
+                for segment in speaker_labels.get("segments", [])
+            }
+        )
 
         console.print("\n✅ [bold green]Transcription Complete![/bold green]")
         console.print(f"📄 JSON saved: [bold]{output_file}[/bold]")
         console.print(f"📝 Markdown saved: [bold]{markdown_file}[/bold]")
         console.print(f"👥 Speakers identified: [bold]{speakers_count}[/bold]")
-        console.print(f"📊 Transcript length: [bold]{len(transcript_text)} characters[/bold]")
+        console.print(
+            f"📊 Transcript length: [bold]{len(transcript_text)} characters[/bold]"
+        )
 
         # Show markdown preview
         with open(markdown_file) as f:
             markdown_content = f.read()
-        preview_lines = markdown_content.split('\n')[2:4]  # Skip title, show first 2 speaker lines
-        preview = '\n'.join(preview_lines)
+        preview_lines = markdown_content.split("\n")[
+            2:4
+        ]  # Skip title, show first 2 speaker lines
+        preview = "\n".join(preview_lines)
         console.print(f"\n📝 [bold]Markdown Preview:[/bold]\n{preview}")
 
         # Cleanup files if requested
@@ -296,17 +345,20 @@ def main(video_file, bucket, job_name, max_speakers, region, audio_name, cleanup
             json_status = "removed"
             console.print(f"🧹 Removed JSON file: [bold]{output_file.name}[/bold]")
 
-        console.print(Panel(
-            "[green]🎉 Success![/green]\n"
-            f"Markdown transcript saved to: [bold]{markdown_file}[/bold]\n"
-            f"JSON file {json_status}: [bold]{output_file.name}[/bold]\n"
-            f"Audio file {audio_status}: [bold]{audio_file.name}[/bold]",
-            border_style="green"
-        ))
+        console.print(
+            Panel(
+                "[green]🎉 Success![/green]\n"
+                f"Markdown transcript saved to: [bold]{markdown_file}[/bold]\n"
+                f"JSON file {json_status}: [bold]{output_file.name}[/bold]\n"
+                f"Audio file {audio_status}: [bold]{audio_file.name}[/bold]",
+                border_style="green",
+            )
+        )
 
     except Exception as e:
         console.print(f"\n❌ [bold red]Error:[/bold red] {str(e)}")
         raise click.Abort() from e
+
 
 if __name__ == "__main__":
     main()
