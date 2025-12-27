@@ -1,15 +1,14 @@
 # Meeting Transcriber 🎙️
 
-Professional audio/video transcription toolkit with local Faster-Whisper and AWS Transcribe integration. Extract audio, identify speakers, generate markdown transcripts with timestamps. Perfect for meeting documentation and content creation workflows.
+Professional audio/video transcription toolkit with AWS Transcribe integration. Extract audio from video files, identify speakers, and generate markdown transcripts with timestamps. Perfect for meeting documentation and content creation workflows.
 
 ## Features
 
-- **Local Transcription**: 100% private processing with Faster-Whisper
 - **Cloud Transcription**: AWS Transcribe with speaker identification
 - **Audio Extraction**: Extract audio from video files (MP4, etc.)
 - **Speaker Detection**: Automatic speaker labeling and timestamps
 - **Markdown Output**: Clean, readable transcript format
-- **Multiple Models**: Choose speed vs accuracy trade-offs
+- **Rich CLI Interface**: Beautiful progress bars and formatted output
 
 ## Quick Start
 
@@ -17,27 +16,16 @@ Professional audio/video transcription toolkit with local Faster-Whisper and AWS
 # Install dependencies
 uv sync
 
-# Local transcription (private)
-uv run python transcribe.py meeting.mp4
-
-# AWS Transcribe (cloud)
-uv run python aws_transcribe.py meeting.mp4 --bucket your-s3-bucket
+# Transcribe with AWS Transcribe
+uv run python -m meeting_transcriber.aws_transcribe meeting.mp4 --bucket your-s3-bucket
 ```
-
-## Local Transcription Models
-
-| Model  | Size   | Speed | Accuracy | Best For |
-|--------|--------|-------|----------|----------|
-| tiny   | ~39MB  | ~32x  | Basic    | Quick drafts |
-| base   | ~74MB  | ~16x  | Good     | Recommended |
-| small  | ~244MB | ~6x   | Better   | Higher accuracy |
-| medium | ~769MB | ~2x   | High     | Best quality |
 
 ## Requirements
 
 - Python 3.9-3.12
 - FFmpeg (for audio extraction)
-- AWS credentials (for cloud transcription)
+- AWS credentials configured
+- S3 bucket for temporary file storage
 
 ## Installation
 
@@ -49,25 +37,25 @@ uv sync
 
 ## Usage Examples
 
-### Local Transcription
-```bash
-# Basic transcription
-uv run python transcribe.py meeting.mp4
-
-# Fast transcription
-uv run python transcribe.py meeting.mp4 --model tiny
-
-# High quality
-uv run python transcribe.py meeting.mp4 --model medium
-```
-
 ### AWS Transcribe
 ```bash
-# With speaker identification
-uv run python aws_transcribe.py meeting.mp4 --bucket my-bucket --max-speakers 5
+# Basic transcription with speaker identification
+uv run python -m meeting_transcriber.aws_transcribe meeting.mp4 --bucket my-bucket
 
-# Custom job name
-uv run python aws_transcribe.py meeting.mp4 --bucket my-bucket --job-name "team-standup-2024"
+# Specify maximum number of speakers
+uv run python -m meeting_transcriber.aws_transcribe meeting.mp4 --bucket my-bucket --max-speakers 5
+
+# Custom job name and region
+uv run python -m meeting_transcriber.aws_transcribe meeting.mp4 \
+  --bucket my-bucket \
+  --job-name "team-standup-2024" \
+  --region us-west-2
+
+# Keep intermediate files for debugging
+uv run python -m meeting_transcriber.aws_transcribe meeting.mp4 \
+  --bucket my-bucket \
+  --keep-audio \
+  --keep-json
 ```
 
 ## Output Format
@@ -80,6 +68,36 @@ Transcripts are generated in markdown format with speaker labels and timestamps:
 [speaker: spk_0][00:15-00:32]: Welcome everyone to today's meeting. Let's start with the project updates.
 
 [speaker: spk_1][00:33-00:45]: Thanks for having me. I wanted to discuss the latest developments in our API integration.
+```
+
+## AWS Setup
+
+### Prerequisites
+1. **AWS Account** with Transcribe service access
+2. **S3 Bucket** for temporary file storage
+3. **AWS Credentials** configured via:
+   - AWS CLI: `aws configure`
+   - Environment variables: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`
+   - IAM roles (for EC2/Lambda deployment)
+
+### Required Permissions
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "transcribe:StartTranscriptionJob",
+                "transcribe:GetTranscriptionJob",
+                "s3:PutObject",
+                "s3:GetObject",
+                "s3:DeleteObject"
+            ],
+            "Resource": "*"
+        }
+    ]
+}
 ```
 
 ## License

@@ -8,10 +8,8 @@ authors = [
 ]
 requires-python = ">=3.9,<3.13"
 dependencies = [
-    "faster-whisper>=1.0.0",
     "click>=8.0.0",
     "rich>=13.0.0",
-    "pathlib",
     "boto3>=1.26.0",
     "ffmpeg-python>=0.2.0",
     "ruff>=0.1.0"
